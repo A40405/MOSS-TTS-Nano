@@ -199,3 +199,6 @@ weights/tts/*.bin
 weights/tts/tokenizer.model
 generated_audio/*
 .app_prompt_uploads/*
+
+models/
+AGENTS.md

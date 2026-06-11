@@ -1,0 +1,17 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+numpy>=1.24
+fastapi>=0.110.0
+python-multipart>=0.0.9
+sentencepiece>=0.1.99
+uvicorn>=0.29.0
+soundfile
+
+transformers==4.57.1
+
+torch==2.7.0+cu126
+torchaudio==2.7.0+cu126
+
+onnxruntime-gpu>=1.20.0
+
+WeTextProcessing @ git+https://github.com/WhizZest/WeTextProcessing.git

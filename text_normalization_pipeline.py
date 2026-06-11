@@ -97,8 +97,19 @@ class WeTextProcessingManager:
             if self._normalizers is not None:
                 return self._normalizers
 
-            from tn.chinese.normalizer import Normalizer as ZhNormalizer
-            from tn.english.normalizer import Normalizer as EnNormalizer
+            try:
+                from tn.chinese.normalizer import Normalizer as ZhNormalizer
+                from tn.english.normalizer import Normalizer as EnNormalizer
+            except ModuleNotFoundError as exc:
+                self._available = False
+                self._normalizers = {}
+                self._set_state(
+                    state="ready",
+                    message="WeTextProcessing unavailable; continuing without it.",
+                    error=None,
+                )
+                logging.warning("WeTextProcessing is unavailable: %s", exc)
+                return self._normalizers
 
             logging.getLogger().setLevel(logging.INFO)
             self._normalizers = {
@@ -117,6 +128,8 @@ class WeTextProcessingManager:
         snapshot = self.ensure_ready()
         if not snapshot.ready:
             raise RuntimeError(snapshot.error or snapshot.message)
+        if not self._available:
+            raise RuntimeError("WeTextProcessing is unavailable in this environment.")
 
         with self._normalize_lock:
             normalizers = self._ensure_normalizers_loaded()
