@@ -203,3 +203,4 @@ generated_audio/*
 models/
 AGENTS.md
 .hf-cache/
+benchmark_results/

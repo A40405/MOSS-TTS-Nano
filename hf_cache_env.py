@@ -14,7 +14,6 @@ def configure_hf_cache_env(repo_root: str | Path | None = None) -> dict[str, str
         "HF_HUB_CACHE": cache_root / "hub",
         "HUGGINGFACE_HUB_CACHE": cache_root / "hub",
         "HF_MODULES_CACHE": cache_root / "modules",
-        "TRANSFORMERS_CACHE": cache_root / "transformers",
     }
 
     resolved: dict[str, str] = {}

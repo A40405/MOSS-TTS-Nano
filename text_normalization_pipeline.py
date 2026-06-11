@@ -11,6 +11,7 @@ from tts_robust_normalizer_single_script import normalize_tts_text
 ENGLISH_VOICES = frozenset({"Trump", "Ava", "Bella", "Adam", "Nathan"})
 CUSTOM_ZH_WETEXT_CACHE_DIR = Path(__file__).resolve().parent / ".cache" / "wetext_zh_no_erhua_keep_punct"
 _ZH_WETEXT_KEEP_HYPHEN = "___KEEP_HYPHEN_BEFORE_ZH_WETEXT___"
+WETEXT_LOGGER_NAMES = ("WETEXT", "wetext-zh_normalizer", "wetext-en_normalizer")
 
 
 @dataclass(frozen=True)
@@ -111,7 +112,8 @@ class WeTextProcessingManager:
                 logging.warning("WeTextProcessing is unavailable: %s", exc)
                 return self._normalizers
 
-            logging.getLogger().setLevel(logging.INFO)
+            for logger_name in WETEXT_LOGGER_NAMES:
+                logging.getLogger(logger_name).setLevel(logging.WARNING)
             self._normalizers = {
                 "zh": ZhNormalizer(
                     cache_dir=str(CUSTOM_ZH_WETEXT_CACHE_DIR),

@@ -95,6 +95,7 @@ def _load_demo_entries(language: str = DEFAULT_LANGUAGE) -> list[dict[str, str]]
     name_prefix = LANGUAGE_NAME_PREFIX.get(language, "")
     role_prefix = f"assets/audio/{language}_"
     entries: list[dict[str, str]] = []
+    demo_index = 0
     for raw_line in DEFAULT_ASSETS_DEMO_JSONL.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line:
@@ -106,10 +107,13 @@ def _load_demo_entries(language: str = DEFAULT_LANGUAGE) -> list[dict[str, str]]
         role = str(payload.get("role", "")).strip()
         text = str(payload.get("text", "")).strip()
         name = str(payload.get("name", "")).strip()
-        if role and text and role.startswith(role_prefix):
+        if role and text:
+            demo_index += 1
+            if not role.startswith(role_prefix):
+                continue
             if name_prefix and not name.startswith(name_prefix):
                 continue
-            entries.append({"role": role, "text": text, "name": name})
+            entries.append({"demo_id": f"demo-{demo_index}", "role": role, "text": text, "name": name})
     return entries
 
 
@@ -120,9 +124,19 @@ def _build_demo_index(language: str = DEFAULT_LANGUAGE) -> dict[str, dict[str, s
         name = str(entry.get("name", "")).strip()
         role = str(entry.get("role", "")).strip()
         if name:
-            index[name] = {"name": name, "role": role, "text": str(entry.get("text", ""))}
+            index[name] = {
+                "demo_id": str(entry.get("demo_id", "")),
+                "name": name,
+                "role": role,
+                "text": str(entry.get("text", "")),
+            }
         if role:
-            index[role] = {"name": name, "role": role, "text": str(entry.get("text", ""))}
+            index[role] = {
+                "demo_id": str(entry.get("demo_id", "")),
+                "name": name,
+                "role": role,
+                "text": str(entry.get("text", "")),
+            }
     return index
 
 
@@ -156,16 +170,36 @@ def _get_demo_payload(
                         break
             if selected is None:
                 raise ValueError(f"Demo not found: {demo_id}")
-            return {"demo_id": demo_id, "text": selected["text"], "name": selected.get("name", ""), "role": selected["role"]}
+            return {
+                "demo_id": str(selected.get("demo_id") or demo_id),
+                "text": selected["text"],
+                "name": selected.get("name", ""),
+                "role": selected["role"],
+            }
         selected = entries[0]
-        return {"demo_id": "demo-1", "text": selected["text"], "name": selected.get("name", ""), "role": selected["role"]}
+        return {
+            "demo_id": str(selected.get("demo_id") or "demo-1"),
+            "text": selected["text"],
+            "name": selected.get("name", ""),
+            "role": selected["role"],
+        }
     entries = _load_demo_entries(language=language)
     if demo_id:
         for index, entry in enumerate(entries, start=1):
             if entry["name"] == demo_id or str(index) == str(demo_id):
-                return {"demo_id": str(demo_id), "text": text, "name": entry.get("name", ""), "role": entry["role"]}
+                return {
+                    "demo_id": str(entry.get("demo_id") or demo_id),
+                    "text": text,
+                    "name": entry.get("name", ""),
+                    "role": entry["role"],
+                }
     selected = entries[0] if entries else {"role": "", "name": ""}
-    return {"demo_id": str(demo_id or "demo-1"), "text": text, "name": selected.get("name", ""), "role": selected.get("role", "")}
+    return {
+        "demo_id": str(selected.get("demo_id") or demo_id or "demo-1"),
+        "text": text,
+        "name": selected.get("name", ""),
+        "role": selected.get("role", ""),
+    }
 
 
 def _resolve_benchmark_payloads(
@@ -187,7 +221,7 @@ def _resolve_benchmark_payloads(
                 raise FileNotFoundError(f"Preset entry not found: {preset_name}")
             payloads.append(
                 {
-                    "demo_id": selected["role"],
+                    "demo_id": selected["demo_id"],
                     "text": selected["text"],
                     "name": selected["name"],
                     "role": selected["role"],
