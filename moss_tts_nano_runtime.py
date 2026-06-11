@@ -12,6 +12,10 @@ from typing import Iterator, Optional
 
 import numpy as np
 import torch
+from hf_cache_env import configure_hf_cache_env, patch_model_hf_tokenizer_cache
+
+HF_CACHE_DIRS = configure_hf_cache_env(Path(__file__).resolve().parent)
+
 from transformers import AutoModel, AutoModelForCausalLM
 
 from moss_tts_nano.defaults import (
@@ -349,18 +353,20 @@ class NanoTTSService:
 
         self._ensure_paths()
         logging.info(
-            "loading Nano-TTS checkpoint=%s audio_tokenizer=%s device=%s dtype=%s attn=%s",
+            "loading Nano-TTS checkpoint=%s audio_tokenizer=%s device=%s dtype=%s attn=%s hf_cache=%s",
             self.checkpoint_path,
             self.audio_tokenizer_path,
             self.device,
             self.dtype,
             self.attn_implementation or "model_default",
+            HF_CACHE_DIRS["HF_HOME"],
         )
         model = AutoModelForCausalLM.from_pretrained(
             self.checkpoint_path,
             trust_remote_code=True,
             local_files_only=_existing_local_model_path(self.checkpoint_path) is not None,
         )
+        tokenizer_cache_dir = patch_model_hf_tokenizer_cache(model, Path(__file__).resolve().parent)
         model.to(device=self.device, dtype=self.dtype)
         self._checkpoint_global_attn_implementation, self._checkpoint_local_attn_implementation = (
             self._read_model_attention_implementation(model)
@@ -376,6 +382,7 @@ class NanoTTSService:
         self._configured_global_attn_implementation, self._configured_local_attn_implementation = (
             self._read_model_attention_implementation(model)
         )
+        logging.info("configured remote tokenizer cache: %s", tokenizer_cache_dir)
         self._model = model
         return self._model
 

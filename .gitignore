@@ -202,3 +202,4 @@ generated_audio/*
 
 models/
 AGENTS.md
+.hf-cache/

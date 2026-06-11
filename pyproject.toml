@@ -36,6 +36,7 @@ py-modules = [
   "app",
   "app_onnx",
   "infer",
+  "hf_cache_env",
   "infer_onnx",
   "moss_tts_nano_runtime",
   "onnx_tts_runtime",

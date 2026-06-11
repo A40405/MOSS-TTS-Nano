@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import torch
+from hf_cache_env import configure_hf_cache_env, patch_model_hf_tokenizer_cache
+
+HF_CACHE_DIRS = configure_hf_cache_env(Path(__file__).resolve().parent)
+
 from transformers import AutoModelForCausalLM
 
 from moss_tts_nano.defaults import (
@@ -25,6 +29,7 @@ def set_logging() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         level=logging.INFO,
     )
+    logging.info("configured Hugging Face cache root: %s", HF_CACHE_DIRS["HF_HOME"])
 
 
 def waiting_for_debug(ip: str, port: int) -> None:
@@ -219,9 +224,11 @@ def load_model(checkpoint: str, device: torch.device, dtype: torch.dtype):
         checkpoint,
         trust_remote_code=True,
     )
+    tokenizer_cache_dir = patch_model_hf_tokenizer_cache(model, Path(__file__).resolve().parent)
     model.to(device=device, dtype=dtype)
     model._set_attention_implementation("sdpa")
     model.eval()
+    logging.info("configured remote tokenizer cache: %s", tokenizer_cache_dir)
     return model
 
 

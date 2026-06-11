@@ -137,6 +137,7 @@ Kỳ vọng sau khi cài xong:
 - `torch.cuda.is_available()` trả về `True`
 - `torch.__version__` có hậu tố `+cu126`
 - `onnxruntime` thấy `CUDAExecutionProvider`
+- repo hiện tự cấu hình cache Hugging Face ngắn hơn tại `.\.hf-cache` trên Windows để giảm rủi ro lỗi đường dẫn quá dài
 
 ## 5. Cách Thực Tế Trên Máy Tôi
 
@@ -407,6 +408,31 @@ Remove-Item -Recurse -Force models\MOSS-Audio-Tokenizer-Nano-ONNX
 Nếu muốn benchmark GPU streaming, dùng:
 
 - `app_onnx.py --execution-provider cuda`
+
+### 12.7 Lỗi `WinError 206` do đường dẫn cache Hugging Face quá dài
+
+Nếu bạn chạy `infer.py` và thấy lỗi như:
+
+- `FileNotFoundError: [WinError 206] The filename or extension is too long`
+
+thì nguyên nhân thường là cache của Hugging Face trên Windows bị lồng thư mục quá sâu, nhất là khi model dùng `trust_remote_code=True`.
+
+Trạng thái hiện tại của repo:
+
+- `infer.py` và runtime PyTorch đã tự cấu hình cache Hugging Face ngắn hơn vào thư mục `.\.hf-cache`
+- vì vậy sau khi cập nhật code mới, bạn chỉ cần chạy lại lệnh inference là đủ
+
+Nếu máy vẫn còn cache cũ và bạn muốn dọn sạch:
+
+```powershell
+Remove-Item -Recurse -Force .hf-cache
+```
+
+Sau đó chạy lại:
+
+```powershell
+python infer.py --enable-wetext-processing 0 --device cuda --dtype float16 --max-new-frames 32 --prompt-audio-path assets/audio/zh_1.wav --text "Welcome to the local smoke test." --output-audio-path generated_audio\smoke_pytorch.wav
+```
 
 ## 13. Lệnh Khuyến Nghị Để Chạy Nhanh Trên Máy Này
 
