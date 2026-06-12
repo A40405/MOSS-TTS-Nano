@@ -468,12 +468,12 @@ Chạy benchmark streaming-only với preset nhẹ:
 
 ```powershell
 conda activate moss-tts-nano
-python benchmark_moss_tts_nano.py --language en --preset english_news --mode streaming --requests-per-level 1 --concurrency 1,2,4 --timeout-seconds 600 --server-base-url http://127.0.0.1:18083
+python benchmark_moss_tts_nano.py --language en --preset english_tiny --mode streaming --requests-per-level 1 --concurrency 1 --timeout-seconds 600 --server-base-url http://127.0.0.1:18083
 ```
 
 Lưu ý:
 
 - Không dùng `english_mix` nếu mục tiêu là đo CCU ổn định trên 4 GB VRAM
-- Nếu cần cơ hội pass cao nhất trên GTX 1650 4 GB, ưu tiên `english_short` trước rồi mới mở rộng sang `english_news`
+- Nếu cần cơ hội pass cao nhất trên GTX 1650 4 GB, ưu tiên `english_tiny` trước rồi mới mở rộng sang `english_short` và `english_news`
 - Không chạy `--mode both` trong cùng một phiên nếu muốn tránh server bị đẩy tới trạng thái không ổn định
 - Nếu cần đo thêm non-streaming, hãy restart `app_onnx.py` trước khi chuyển mode

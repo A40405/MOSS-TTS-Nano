@@ -39,6 +39,9 @@ LANGUAGE_NAME_PREFIX = {
     "zh": "🇨🇳",
 }
 PRESET_PROMPTS = {
+    "english_tiny": (
+        "🇺🇸 Hello",
+    ),
     "english_short": (
         "🇺🇸 A Gentle Reminder",
     ),
@@ -75,7 +78,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--preset",
         choices=tuple(PRESET_PROMPTS.keys()),
         default=None,
-        help="Benchmark preset. English-only presets are english_news and english_mix.",
+        help="Benchmark preset. English-only presets are english_tiny, english_short, english_news, and english_mix.",
     )
     parser.add_argument("--output-dir", default=None, help="Directory for benchmark outputs.")
     parser.add_argument(
@@ -216,6 +219,19 @@ def _resolve_benchmark_payloads(
     if preset is not None:
         if text_override or text_file or demo_id:
             raise ValueError("--preset cannot be combined with --text, --text-file, or --demo-id.")
+        if preset == "english_tiny":
+            demo_index = _build_demo_index(language=language)
+            selected = demo_index.get("🇺🇸 Welcome to OpenMOSS") or next(iter(demo_index.values()), None)
+            if selected is None:
+                raise FileNotFoundError("Preset entry not found for english_tiny")
+            return [
+                {
+                    "demo_id": selected["demo_id"],
+                    "text": "Hello.",
+                    "name": "🇺🇸 English Tiny",
+                    "role": selected["role"],
+                }
+            ]
         demo_index = _build_demo_index(language=language)
         payloads: list[dict[str, str]] = []
         for preset_name in PRESET_PROMPTS[preset]:
@@ -543,50 +559,50 @@ def _benchmark_streaming_once(base_url: str, demo_payload: dict[str, str], timeo
     started = time.perf_counter()
     start_payload = _open_json(f"{base_url}/api/generate-stream/start", data=_build_request_fields(demo_payload), timeout=timeout_seconds)
     stream_id = str(start_payload.get("stream_id") or "")
-    audio_url = str(start_payload.get("audio_url") or "")
-    if not stream_id or not audio_url:
-        raise RuntimeError("generate-stream/start response missing stream_id or audio_url")
+    status_url = str(start_payload.get("status_url") or "")
+    result_url = str(start_payload.get("result_url") or "")
+    if not stream_id or not status_url or not result_url:
+        raise RuntimeError("generate-stream/start response missing stream_id, status_url, or result_url")
 
-    parsed = urllib.parse.urlsplit(audio_url)
-    connection_class = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
-    connection = connection_class(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), timeout=timeout_seconds)
-    path = parsed.path or "/"
-    if parsed.query:
-        path += f"?{parsed.query}"
+    first_chunk_seconds: float | None = None
+    status_snapshot: dict[str, Any] | None = None
+    result_payload: dict[str, Any] | None = None
+    deadline = started + timeout_seconds
+    status_poll_interval = min(0.25, max(0.05, timeout_seconds / 100.0))
+    result_poll_interval = min(0.25, max(0.05, timeout_seconds / 100.0))
 
-    first_chunk_at: float | None = None
-    audio_bytes = bytearray()
-    sample_rate = 0
-    channels = 0
-    try:
-        connection.request("GET", path, headers={"Accept": "application/octet-stream"})
-        response = connection.getresponse()
-        try:
-            sample_rate = int(response.getheader("X-Audio-Sample-Rate") or "0")
-        except Exception:
-            sample_rate = 0
-        try:
-            channels = int(response.getheader("X-Audio-Channels") or "0")
-        except Exception:
-            channels = 0
-        first_byte = response.read(1)
-        if first_byte:
-            first_chunk_at = time.perf_counter()
-            audio_bytes.extend(first_byte)
-        while True:
-            chunk = response.read(65536)
-            if not chunk:
-                break
-            audio_bytes.extend(chunk)
-    finally:
-        try:
-            connection.close()
-        except Exception:
-            pass
+    while time.perf_counter() < deadline:
+        status_snapshot = _open_json(status_url, timeout=min(10.0, timeout_seconds))
+        if status_snapshot.get("failed"):
+            raise RuntimeError(str(status_snapshot.get("error") or status_snapshot.get("run_status") or "stream failed"))
+        first_audio_latency = status_snapshot.get("first_audio_latency_seconds")
+        if first_chunk_seconds is None and first_audio_latency is not None:
+            try:
+                first_chunk_seconds = float(first_audio_latency)
+            except Exception:
+                first_chunk_seconds = None
+        if status_snapshot.get("ready"):
+            break
+        time.sleep(status_poll_interval)
+    else:
+        raise TimeoutError(f"stream status did not become ready within {timeout_seconds}s")
+
+    while time.perf_counter() < deadline:
+        result_payload = _open_json(result_url, timeout=min(10.0, timeout_seconds))
+        if result_payload.get("ready"):
+            break
+        if result_payload.get("failed"):
+            raise RuntimeError(str(result_payload.get("error") or result_payload.get("run_status") or "stream failed"))
+        time.sleep(result_poll_interval)
+    if not result_payload or not result_payload.get("ready"):
+        raise TimeoutError(f"stream result did not become ready within {timeout_seconds}s")
 
     finished = time.perf_counter()
-    first_chunk_seconds = (first_chunk_at - started) if first_chunk_at is not None else None
-    audio_duration_seconds = _pcm_duration_seconds(len(audio_bytes), sample_rate, channels)
+    audio_base64 = str(result_payload.get("audio_base64") or "")
+    if not audio_base64:
+        raise RuntimeError("stream result did not contain audio_base64")
+    audio_bytes = base64.b64decode(audio_base64)
+    audio_duration_seconds, sample_rate, channels = _download_audio_duration_from_wav_bytes(audio_bytes)
     latency_seconds = finished - started
     rtf = latency_seconds / audio_duration_seconds if audio_duration_seconds > 0 else None
     return SampleRecord(
@@ -603,7 +619,7 @@ def _benchmark_streaming_once(base_url: str, demo_payload: dict[str, str], timeo
             "stream_id": stream_id,
             "sample_rate": sample_rate,
             "channels": channels,
-            "run_status": start_payload.get("run_status"),
+            "run_status": result_payload.get("run_status") or start_payload.get("run_status"),
             "demo_name": demo_payload.get("name"),
             "demo_role": demo_payload.get("role"),
         },
@@ -827,6 +843,11 @@ def _write_markdown(path: Path, profile: dict[str, Any], rows: list[dict[str, An
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     args = _parse_args(argv)
     demo_payloads = _resolve_benchmark_payloads(
         language=args.language,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import signal
 import queue
 import re
 import threading
@@ -663,13 +664,35 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     app = legacy_app._build_app(runtime, warmup_manager, text_normalizer_manager, root_path)
     app.title = "MOSS-TTS-Nano ONNX Demo"
-    uvicorn.run(
+    config = uvicorn.Config(
         app,
         host=args.host,
         port=args.port,
         log_level="info",
         root_path=root_path or "",
     )
+    server = uvicorn.Server(config)
+    shutdown_requested = threading.Event()
+
+    def _handle_shutdown_signal(_signum, _frame) -> None:
+        if shutdown_requested.is_set():
+            os._exit(130)
+        shutdown_requested.set()
+        server.should_exit = True
+        if hasattr(server, "force_exit"):
+            server.force_exit = True
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGINT, _handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+    try:
+        server.run()
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint)
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        if shutdown_requested.is_set():
+            os._exit(0)
 
 
 if __name__ == "__main__":
