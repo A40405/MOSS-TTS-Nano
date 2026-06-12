@@ -438,14 +438,14 @@ python infer.py --enable-wetext-processing 0 --device cuda --dtype float16 --max
 
 ```powershell
 conda activate moss-tts-nano
-python app_onnx.py --execution-provider cuda
+python app_onnx.py --execution-provider cuda --low-vram
 ```
 
 Terminal khác:
 
 ```powershell
 conda activate moss-tts-nano
-python benchmark_moss_tts_nano.py --language en --preset english_mix --mode both --server-base-url http://127.0.0.1:18083
+python benchmark_moss_tts_nano.py --language en --preset english_news --mode streaming --requests-per-level 1 --concurrency 1,2,4 --timeout-seconds 600 --server-base-url http://127.0.0.1:18083
 ```
 
 ## 14. Ghi Chú Quan Trọng
@@ -461,14 +461,14 @@ Nếu mục tiêu là benchmark ổn định trên máy VRAM thấp, dùng cấu
 
 ```powershell
 conda activate moss-tts-nano
-python app_onnx.py --execution-provider cuda --max-new-frames 256 --codec-chunk-size 4
+python app_onnx.py --execution-provider cuda --low-vram
 ```
 
 Chạy benchmark streaming-only với preset nhẹ:
 
 ```powershell
 conda activate moss-tts-nano
-python benchmark_moss_tts_nano.py --language en --preset english_news --mode streaming --requests-per-level 2 --concurrency 1,2,4,8 --server-base-url http://127.0.0.1:18083
+python benchmark_moss_tts_nano.py --language en --preset english_news --mode streaming --requests-per-level 1 --concurrency 1,2,4 --timeout-seconds 600 --server-base-url http://127.0.0.1:18083
 ```
 
 Lưu ý:
