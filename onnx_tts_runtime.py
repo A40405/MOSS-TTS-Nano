@@ -19,6 +19,7 @@ APP_DIR = Path(__file__).resolve().parent
 REPO_ROOT = APP_DIR
 from ort_cpu_runtime import (
     OrtCpuRuntime,
+    EXECUTION_PROVIDER_CUDA,
     _normalize_sample_mode,
     _resolve_stream_decode_frame_budget,
     EXECUTION_PROVIDER_CPU,
