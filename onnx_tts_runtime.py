@@ -497,32 +497,39 @@ class OnnxTtsRuntime(OrtCpuRuntime):
             raise ValueError(f"Built-in voice not found: {resolved_voice}")
         return list(voice_row["prompt_audio_codes"])
 
+    def _decode_incrementally(self, generated_frames: list[list[int]], *, chunk_size: int = 8) -> np.ndarray:
+        self.codec_streaming_session.reset()
+        merged_by_channel: list[list[np.ndarray]] = [
+            [] for _ in range(int(self.codec_meta["codec_config"]["channels"]))
+        ]
+        try:
+            step = max(1, int(chunk_size))
+            for start_index in range(0, len(generated_frames), step):
+                frame_chunk = generated_frames[start_index : start_index + step]
+                decoded = self.codec_streaming_session.run_frames(frame_chunk)
+                if decoded is None:
+                    continue
+                audio, audio_length = decoded
+                if audio_length <= 0:
+                    continue
+                for channel_index, channel in enumerate(audio[0, :, :audio_length]):
+                    merged_by_channel[channel_index].append(np.asarray(channel, dtype=np.float32))
+        finally:
+            self.codec_streaming_session.reset()
+        return _merge_audio_channels(
+            [np.concatenate(chunks) if chunks else np.zeros((0,), dtype=np.float32) for chunks in merged_by_channel]
+        )
+
     def decode_full_audio_safe(self, generated_frames: list[list[int]]) -> np.ndarray:
+        if self.execution_provider == EXECUTION_PROVIDER_CUDA:
+            logging.info("cuda execution provider detected; using incremental codec decode to avoid full decode OOM")
+            return self._decode_incrementally(generated_frames)
         try:
             channel_arrays, _audio_length = self.decode_full_audio(generated_frames)
             return _merge_audio_channels(channel_arrays)
         except Exception as exc:
             logging.warning("full codec decode failed, falling back to incremental decode: %s", exc)
-            self.codec_streaming_session.reset()
-            merged_by_channel: list[list[np.ndarray]] = [
-                [] for _ in range(int(self.codec_meta["codec_config"]["channels"]))
-            ]
-            try:
-                for start_index in range(0, len(generated_frames), 8):
-                    frame_chunk = generated_frames[start_index : start_index + 8]
-                    decoded = self.codec_streaming_session.run_frames(frame_chunk)
-                    if decoded is None:
-                        continue
-                    audio, audio_length = decoded
-                    if audio_length <= 0:
-                        continue
-                    for channel_index, channel in enumerate(audio[0, :, :audio_length]):
-                        merged_by_channel[channel_index].append(np.asarray(channel, dtype=np.float32))
-            finally:
-                self.codec_streaming_session.reset()
-            return _merge_audio_channels(
-                [np.concatenate(chunks) if chunks else np.zeros((0,), dtype=np.float32) for chunks in merged_by_channel]
-            )
+            return self._decode_incrementally(generated_frames)
 
     def synthesize_single_chunk(
         self,
