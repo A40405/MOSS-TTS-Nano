@@ -639,8 +639,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         output_dir=output_dir,
         cpu_threads=args.cpu_threads,
         execution_provider=args.execution_provider,
-        max_new_frames=128 if args.low_vram else args.max_new_frames,
-        codec_chunk_size=2 if args.low_vram else args.codec_chunk_size,
+        max_new_frames=64 if args.low_vram else args.max_new_frames,
+        codec_chunk_size=1 if args.low_vram else args.codec_chunk_size,
         text_normalizer_manager=text_normalizer_manager,
     )
     warmup_manager = legacy_app.WarmupManager(runtime, text_normalizer_manager=text_normalizer_manager)
@@ -648,8 +648,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     OnnxRequestRuntimeManager._factory_model_dir = runtime.model_dir
     OnnxRequestRuntimeManager._factory_output_dir = output_dir
-    OnnxRequestRuntimeManager._factory_max_new_frames = 128 if args.low_vram else int(args.max_new_frames)
-    OnnxRequestRuntimeManager._factory_codec_chunk_size = 2 if args.low_vram else int(args.codec_chunk_size)
+    OnnxRequestRuntimeManager._factory_max_new_frames = 64 if args.low_vram else int(args.max_new_frames)
+    OnnxRequestRuntimeManager._factory_codec_chunk_size = 1 if args.low_vram else int(args.codec_chunk_size)
     OnnxRequestRuntimeManager._factory_execution_provider = runtime.execution_provider
     OnnxRequestRuntimeManager._factory_text_normalizer_manager = text_normalizer_manager
     legacy_app.RequestRuntimeManager = OnnxRequestRuntimeManager

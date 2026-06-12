@@ -39,6 +39,9 @@ LANGUAGE_NAME_PREFIX = {
     "zh": "🇨🇳",
 }
 PRESET_PROMPTS = {
+    "english_short": (
+        "🇺🇸 A Gentle Reminder",
+    ),
     "english_news": (
         "🇺🇸 English News",
     ),
