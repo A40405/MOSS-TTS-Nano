@@ -286,6 +286,7 @@ class OnnxTtsRuntime(OrtCpuRuntime):
         *,
         thread_count: int = 4,
         max_new_frames: int | None = None,
+        codec_chunk_size: int = 4,
         do_sample: bool | None = None,
         sample_mode: str | None = None,
         execution_provider: str = EXECUTION_PROVIDER_CPU,
@@ -302,6 +303,7 @@ class OnnxTtsRuntime(OrtCpuRuntime):
         )
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.codec_chunk_size = max(1, int(codec_chunk_size))
         tokenizer_relative_path = str(self.manifest["model_files"].get("tokenizer_model", "tokenizer.model"))
         tokenizer_path = self.resolve_manifest_relative_path(tokenizer_relative_path)
         self.sp_model = spm.SentencePieceProcessor(model_file=str(tokenizer_path))
@@ -523,13 +525,13 @@ class OnnxTtsRuntime(OrtCpuRuntime):
     def decode_full_audio_safe(self, generated_frames: list[list[int]]) -> np.ndarray:
         if self.execution_provider == EXECUTION_PROVIDER_CUDA:
             logging.info("cuda execution provider detected; using incremental codec decode to avoid full decode OOM")
-            return self._decode_incrementally(generated_frames)
+            return self._decode_incrementally(generated_frames, chunk_size=self.codec_chunk_size)
         try:
             channel_arrays, _audio_length = self.decode_full_audio(generated_frames)
             return _merge_audio_channels(channel_arrays)
         except Exception as exc:
             logging.warning("full codec decode failed, falling back to incremental decode: %s", exc)
-            return self._decode_incrementally(generated_frames)
+            return self._decode_incrementally(generated_frames, chunk_size=self.codec_chunk_size)
 
     def synthesize_single_chunk(
         self,

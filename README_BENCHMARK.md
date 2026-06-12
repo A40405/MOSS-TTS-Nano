@@ -454,3 +454,25 @@ python benchmark_moss_tts_nano.py --language en --preset english_mix --mode both
 - Nếu model chưa cache thì lần đầu sẽ tải
 - Nếu tải model lỗi do mạng, benchmark script vẫn đúng, chỉ là phụ thuộc nguồn ngoài
 - Nếu máy không có GPU/CUDA, đổi sang `app_onnx.py --execution-provider cpu`
+
+## 15. Cấu Hình Đề Xuất Cho GTX 1650 4 GB
+
+Nếu mục tiêu là benchmark ổn định trên máy VRAM thấp, dùng cấu hình sau:
+
+```powershell
+conda activate moss-tts-nano
+python app_onnx.py --execution-provider cuda --max-new-frames 256 --codec-chunk-size 4
+```
+
+Chạy benchmark streaming-only với preset nhẹ:
+
+```powershell
+conda activate moss-tts-nano
+python benchmark_moss_tts_nano.py --language en --preset english_news --mode streaming --requests-per-level 2 --concurrency 1,2,4,8 --server-base-url http://127.0.0.1:18083
+```
+
+Lưu ý:
+
+- Không dùng `english_mix` nếu mục tiêu là đo CCU ổn định trên 4 GB VRAM
+- Không chạy `--mode both` trong cùng một phiên nếu muốn tránh server bị đẩy tới trạng thái không ổn định
+- Nếu cần đo thêm non-streaming, hãy restart `app_onnx.py` trước khi chuyển mode

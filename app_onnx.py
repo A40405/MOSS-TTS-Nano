@@ -48,6 +48,7 @@ class OnnxNanoTTSServiceAdapter:
         cpu_threads: int = 4,
         execution_provider: str = "cpu",
         max_new_frames: int = 375,
+        codec_chunk_size: int = 4,
         text_normalizer_manager: WeTextProcessingManager | None = None,
     ) -> None:
         self.output_dir = Path(output_dir or (APP_DIR / "generated_audio")).expanduser().resolve()
@@ -56,6 +57,7 @@ class OnnxNanoTTSServiceAdapter:
             model_dir=model_dir,
             thread_count=max(1, int(cpu_threads)),
             max_new_frames=int(max_new_frames),
+            codec_chunk_size=int(codec_chunk_size),
             execution_provider=execution_provider,
             output_dir=self.output_dir,
         )
@@ -397,6 +399,7 @@ class OnnxRequestRuntimeManager:
     _factory_model_dir: Path | None = None
     _factory_output_dir: Path | None = None
     _factory_max_new_frames: int = 375
+    _factory_codec_chunk_size: int = 4
     _factory_execution_provider: str = "cpu"
     _factory_text_normalizer_manager: WeTextProcessingManager | None = None
 
@@ -441,6 +444,7 @@ class OnnxRequestRuntimeManager:
             cpu_threads=cpu_threads,
             execution_provider=self._factory_execution_provider,
             max_new_frames=self._factory_max_new_frames,
+            codec_chunk_size=self._factory_codec_chunk_size,
             text_normalizer_manager=self._factory_text_normalizer_manager,
         )
         self._cpu_runtimes[cpu_threads] = runtime
@@ -599,6 +603,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=18083)
     parser.add_argument("--cpu-threads", type=int, default=max(1, int(os.cpu_count() or 1)))
     parser.add_argument(
+        "--codec-chunk-size",
+        type=int,
+        default=4,
+        help="Codec incremental decode chunk size. Smaller values reduce peak VRAM on CUDA.",
+    )
+    parser.add_argument(
         "--execution-provider",
         choices=("cpu", "cuda"),
         default="cpu",
@@ -625,6 +635,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         cpu_threads=args.cpu_threads,
         execution_provider=args.execution_provider,
         max_new_frames=args.max_new_frames,
+        codec_chunk_size=args.codec_chunk_size,
         text_normalizer_manager=text_normalizer_manager,
     )
     warmup_manager = legacy_app.WarmupManager(runtime, text_normalizer_manager=text_normalizer_manager)
@@ -633,6 +644,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     OnnxRequestRuntimeManager._factory_model_dir = runtime.model_dir
     OnnxRequestRuntimeManager._factory_output_dir = output_dir
     OnnxRequestRuntimeManager._factory_max_new_frames = int(args.max_new_frames)
+    OnnxRequestRuntimeManager._factory_codec_chunk_size = int(args.codec_chunk_size)
     OnnxRequestRuntimeManager._factory_execution_provider = runtime.execution_provider
     OnnxRequestRuntimeManager._factory_text_normalizer_manager = text_normalizer_manager
     legacy_app.RequestRuntimeManager = OnnxRequestRuntimeManager
